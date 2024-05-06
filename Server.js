@@ -1,23 +1,52 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const mqtt = require('mqtt');
 
 const app = express();
 const PORT = 3000;
-
+const client  = mqtt.connect('mqtt://localhost');
 app.use(express.json());
-
 const db = new sqlite3.Database('banco-de-dados.db');
-
+client.on('connect', function () {
+    // Substitua por seus tópicos
+    client.subscribe('temperatura', function (err) {
+      if (!err) {
+        console.log('Subscrito com sucesso ao tópico temperatura');
+      }
+    });
+  
+    client.subscribe('vibracao', function (err) {
+      if (!err) {
+        console.log('Subscrito com sucesso ao tópico vibracao');
+      }
+    });
+  
+    client.subscribe('tensao', function (err) {
+      if (!err) {
+        console.log('Subscrito com sucesso ao tópico tensao');
+      }
+    });
+  });
 // Lógica para criar a tabela se ela não existir
 db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS dados_sensores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sensor_id INTEGER,
-        temperatura REAL,
-        umidade REAL,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-});
+    db.run(`CREATE TABLE temperatura (
+              sensor_id INTEGER,
+              valor REAL,
+              timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+  
+    db.run(`CREATE TABLE vibracao (
+              sensor_id INTEGER,
+              valor REAL,
+              timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+  
+    db.run(`CREATE TABLE tensao (
+              sensor_id INTEGER,
+              valor REAL,
+              timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+  });
 
 //rota post
 app.post('/dados-sensores', (req, res) => {
@@ -55,6 +84,40 @@ app.get('/dados-sensores', (req, res) => {
     });
 });
 
+client.on('connect', function () {
+    // Substitua por seus tópicos
+    client.subscribe('temperatura', function (err) {
+      if (!err) {
+        console.log('Subscrito com sucesso ao tópico temperatura');
+      }
+    });
+  
+    client.subscribe('vibracao', function (err) {
+      if (!err) {
+        console.log('Subscrito com sucesso ao tópico vibracao');
+      }
+    });
+  
+    client.subscribe('tensao', function (err) {
+      if (!err) {
+        console.log('Subscrito com sucesso ao tópico tensao');
+      }
+    });
+  });
+  
 app.listen(PORT, () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
+
+client.on('message', function (topic, message) {
+    // message é um Buffer
+    let data = JSON.parse(message.toString());
+    let stmt = db.prepare(`INSERT INTO ${topic} (sensor_id, valor) VALUES (?, ?)`);
+    stmt.run(data.sensor_id, data.valor);
+    stmt.finalize();
+  });
+  
+  process.on('exit', (code) => {
+    client.end();
+    db.close();
+  });
